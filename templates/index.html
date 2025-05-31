@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Web Crawler</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #2d3748;
+            margin-bottom: 20px;
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        input {
+            padding: 10px;
+            border: 1px solid #cbd5e0;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        input:focus {
+            outline: none;
+            border-color: #4299e1;
+            box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.2);
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #4299e1;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #2b6cb0;
+        }
+        .instructions {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f7fafc;
+            border-radius: 5px;
+            font-size: 0.9em;
+            color: #4a5568;
+        }
+    </style>
+</head>
+<body>
+    <h1>Web Crawler</h1>
+    <form action="/submit" method="POST">
+        <input name="url" placeholder="Enter URL (e.g., https://en.wikipedia.org/wiki/...)" required>
+        <input name="keyword" placeholder="Enter keyword to search for" required>
+        <button type="submit">Crawl</button>
+    </form>
+    <div class="instructions">
+        <h3>Instructions:</h3>
+        <ul>
+            <li>Enter a complete URL starting with http:// or https://</li>
+            <li>Enter a keyword to search for in the page content</li>
+            <li>The crawler will count how many times the keyword appears</li>
+            <li>Results will show the page title, URL, and a preview of the content</li>
+            <li>Some websites may block web crawlers</li>
+        </ul>
+    </div>
+</body>
+</html>

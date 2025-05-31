@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Crawler Results</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .result {
+            border: 1px solid #ddd;
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .title {
+            font-size: 1.2em;
+            margin-bottom: 10px;
+        }
+        .score {
+            color: #2c5282;
+            font-weight: bold;
+        }
+        .url {
+            color: #2b6cb0;
+            word-break: break-all;
+            margin-bottom: 10px;
+        }
+        .back {
+            margin-top: 20px;
+            display: block;
+            color: #4299e1;
+            text-decoration: none;
+        }
+        .back:hover {
+            text-decoration: underline;
+        }
+        h1 {
+            color: #2d3748;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Crawler Results</h1>
+    {{if .}}
+        {{range .}}
+        <div class="result">
+            <div class="title">
+                <a href="{{.URL}}" target="_blank">{{.URL}}</a>
+                <span class="score">(Score: {{.Score}})</span>
+            </div>
+        </div>
+        {{end}}
+    {{else}}
+        <p>No results found.</p>
+    {{end}}
+    <a href="/" class="back">← Back to Search</a>
+</body>
+</html>
