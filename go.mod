@@ -1,4 +1,4 @@
-module github.com/yourname/go-web-crawler
+module github.com/vikram/go-web-crawler
 
 go 1.21
 

@@ -3,8 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
-
-	"github.com/yourname/go-web-crawler/handlers"
+	"github.com/vikram/go-web-crawler/handlers"
 )
 
 func main() {
