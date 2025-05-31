@@ -55,17 +55,17 @@
 <body>
     <h1>Web Crawler</h1>
     <form action="/submit" method="POST">
-        <input name="url" placeholder="Enter URL (e.g., https://en.wikipedia.org/wiki/...)" required>
-        <input name="keyword" placeholder="Enter keyword to search for" required>
+        <input name="url" placeholder="Enter any URL (e.g., https://example.com)" required>
+        <input name="keywords" placeholder="Enter keywords separated by commas (e.g., technology, news, software)" required>
         <button type="submit">Crawl</button>
     </form>
     <div class="instructions">
         <h3>Instructions:</h3>
         <ul>
             <li>Enter a complete URL starting with http:// or https://</li>
-            <li>Enter a keyword to search for in the page content</li>
-            <li>The crawler will count how many times the keyword appears</li>
-            <li>Results will show the page title, URL, and a preview of the content</li>
+            <li>Enter keywords separated by commas to search for in the content</li>
+            <li>The crawler will analyze the page content and calculate a score based on keyword matches</li>
+            <li>Results will be stored and can be viewed in the results page</li>
             <li>Some websites may block web crawlers</li>
         </ul>
     </div>

@@ -9,54 +9,125 @@
             margin: 0 auto;
             padding: 20px;
         }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
         .result {
             border: 1px solid #ddd;
             margin: 10px 0;
             padding: 15px;
             border-radius: 5px;
+            background: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
         .title {
             font-size: 1.2em;
             margin-bottom: 10px;
-        }
-        .score {
-            color: #2c5282;
-            font-weight: bold;
         }
         .url {
             color: #2b6cb0;
             word-break: break-all;
             margin-bottom: 10px;
         }
-        .back {
-            margin-top: 20px;
-            display: block;
-            color: #4299e1;
+        .url a {
+            color: inherit;
             text-decoration: none;
         }
-        .back:hover {
+        .url a:hover {
             text-decoration: underline;
+        }
+        .keywords {
+            margin: 10px 0;
+            color: #4a5568;
+        }
+        .score {
+            display: inline-block;
+            background: #e2e8f0;
+            padding: 2px 8px;
+            border-radius: 12px;
+            margin: 2px;
+            font-size: 0.9em;
+        }
+        .score.high {
+            background: #c6f6d5;
+            color: #2f855a;
+        }
+        .score.medium {
+            background: #feebc8;
+            color: #9c4221;
+        }
+        .time {
+            color: #718096;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        .back {
+            display: inline-block;
+            color: white;
+            background: #4299e1;
+            padding: 8px 16px;
+            border-radius: 5px;
+            text-decoration: none;
+            transition: background-color 0.2s;
+        }
+        .back:hover {
+            background: #2b6cb0;
         }
         h1 {
             color: #2d3748;
+            margin: 0;
+        }
+        .results-container {
+            background: #f7fafc;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .info {
+            color: #718096;
             margin-bottom: 20px;
+            font-style: italic;
         }
     </style>
 </head>
 <body>
-    <h1>Crawler Results</h1>
-    {{if .}}
-        {{range .}}
-        <div class="result">
-            <div class="title">
-                <a href="{{.URL}}" target="_blank">{{.URL}}</a>
-                <span class="score">(Score: {{.Score}})</span>
+    <div class="header">
+        <h1>Crawler Results</h1>
+        <a href="/" class="back">← New Search</a>
+    </div>
+    
+    <div class="results-container">
+        <div class="info">Showing the last 10 crawl results</div>
+        {{if .}}
+            {{range .}}
+            <div class="result">
+                <div class="url">
+                    <a href="{{.URL}}" target="_blank">{{.URL}}</a>
+                </div>
+                <div class="keywords">
+                    Keywords searched:
+                    {{range .Keywords}}
+                        <span class="score">{{.}}</span>
+                    {{end}}
+                </div>
+                <div class="keywords">
+                    Matches:
+                    {{range .Scores}}
+                        <span class="score {{if ge .Count 10}}high{{else if ge .Count 5}}medium{{end}}">
+                            {{.Keyword}}: {{.Count}}
+                        </span>
+                    {{end}}
+                </div>
+                <div class="time">
+                    Crawled: {{.CrawlTime.Format "Jan 02, 2006 15:04:05"}}
+                </div>
             </div>
-        </div>
+            {{end}}
+        {{else}}
+            <p>No results found.</p>
         {{end}}
-    {{else}}
-        <p>No results found.</p>
-    {{end}}
-    <a href="/" class="back">← Back to Search</a>
+    </div>
 </body>
 </html>

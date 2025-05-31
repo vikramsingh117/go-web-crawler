@@ -8,22 +8,49 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/andybalholm/brotli"
+	"github.com/joho/godotenv"
 
 	"html/template"
-	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-var mongoURI = "mongodb://localhost:27017"
+type Page struct {
+	URL       string    `bson:"url"`
+	Keywords  []string  `bson:"keywords"`
+	Scores    []Score   `bson:"scores"`
+	HTML      string    `bson:"html"`
+	CrawlTime time.Time `bson:"crawl_time"`
+}
+
+type Score struct {
+	Keyword string `bson:"keyword"`
+	Count   int    `bson:"count"`
+}
+
 var mongoClient *mongo.Client
 
 func init() {
+	// Load .env file
+	if err := godotenv.Load(); err != nil {
+		log.Println("Warning: .env file not found")
+	}
+
+	// Get MongoDB URI from environment variable or use default
+	mongoURI := os.Getenv("MONGO_URI")
+	if mongoURI == "" {
+		mongoURI = "mongodb://localhost:27017"
+		log.Println("Using default MongoDB URI")
+	}
+
 	var err error
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -38,11 +65,6 @@ func init() {
 	if err != nil {
 		log.Fatal("Failed to ping MongoDB:", err)
 	}
-}
-
-type Page struct {
-	URL   string `bson:"url"`
-	Score int    `bson:"score"`
 }
 
 func IndexHandler(w http.ResponseWriter, r *http.Request) {
@@ -73,13 +95,23 @@ func CrawlHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("Attempting to crawl URL: %s", url)
 
-	keyword := strings.ToLower(r.FormValue("keyword"))
-	if keyword == "" {
-		log.Println("Keyword is empty")
-		http.Error(w, "Keyword is required", http.StatusBadRequest)
+	// Get and process keywords
+	keywordsRaw := r.FormValue("keywords")
+	if keywordsRaw == "" {
+		log.Println("Keywords are empty")
+		http.Error(w, "Keywords are required", http.StatusBadRequest)
 		return
 	}
-	log.Printf("Searching for keyword: %s", keyword)
+
+	// Split keywords and clean them
+	keywords := []string{}
+	for _, k := range strings.Split(keywordsRaw, ",") {
+		keyword := strings.ToLower(strings.TrimSpace(k))
+		if keyword != "" {
+			keywords = append(keywords, keyword)
+		}
+	}
+	log.Printf("Processing keywords: %v", keywords)
 
 	client := &http.Client{
 		Timeout: 30 * time.Second,
@@ -116,40 +148,40 @@ func CrawlHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Response status code: %d", resp.StatusCode)
 	log.Printf("Response headers: %+v", resp.Header)
 
-	if resp.StatusCode == http.StatusForbidden {
-		log.Printf("Access forbidden (403) for URL: %s. This website might be blocking web crawlers.", url)
-		http.Error(w, "This website is blocking our crawler. Please try a different website.", http.StatusBadRequest)
-		return
-	}
-
 	if resp.StatusCode != http.StatusOK {
 		log.Printf("Error: received status code %d for URL: %s", resp.StatusCode, url)
 		http.Error(w, fmt.Sprintf("Failed to fetch URL: status code %d", resp.StatusCode), http.StatusInternalServerError)
 		return
 	}
 
-	// Read the body with proper handling of compression
+	// Handle different encodings
 	var reader io.Reader = resp.Body
-	if resp.Header.Get("Content-Encoding") == "gzip" {
+	switch resp.Header.Get("Content-Encoding") {
+	case "gzip":
 		gzReader, err := gzip.NewReader(resp.Body)
 		if err != nil {
 			log.Printf("Error creating gzip reader: %v", err)
-			http.Error(w, "Failed to decompress response", http.StatusInternalServerError)
+			http.Error(w, "Failed to decompress gzip response", http.StatusInternalServerError)
 			return
 		}
 		defer gzReader.Close()
 		reader = gzReader
+	case "br":
+		reader = brotli.NewReader(resp.Body)
+		log.Printf("Using Brotli decompression")
+	case "deflate":
+		reader = resp.Body // net/http automatically handles deflate
+	default:
+		reader = resp.Body
 	}
 
+	// Read the entire response body
 	bodyBytes, err := io.ReadAll(reader)
 	if err != nil {
 		log.Printf("Error reading response body: %v", err)
 		http.Error(w, "Failed to read response body", http.StatusInternalServerError)
 		return
 	}
-
-	log.Printf("Successfully read %d bytes from response", len(bodyBytes))
-	log.Printf("First 100 bytes of raw response: %q", bodyBytes[:min(100, len(bodyBytes))])
 
 	// Create a new reader from the bytes for goquery
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(bodyBytes))
@@ -159,29 +191,40 @@ func CrawlHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get the text content, but clean it up first
-	var body string
-	if doc.Find("#mw-content-text").Length() > 0 {
-		// For Wikipedia pages
-		body = doc.Find("#mw-content-text").Text()
-	} else if doc.Find("article, [role='main'], main, #main, .main-content").Length() > 0 {
-		// For other common content areas
-		body = doc.Find("article, [role='main'], main, #main, .main-content").First().Text()
-	} else {
-		// Fallback to body but exclude common navigation elements
-		doc.Find("nav, header, footer, .navigation, #navigation, .menu, #menu").Remove()
-		body = doc.Find("body").Text()
+	// Get the HTML content
+	htmlContent, err := doc.Html()
+	if err != nil {
+		log.Printf("Error getting HTML: %v", err)
+		htmlContent = string(bodyBytes) // fallback to raw bytes
 	}
 
-	body = strings.ToLower(body) // Convert to lowercase for case-insensitive search
-	score := strings.Count(body, keyword)
-	log.Printf("Keyword %q appears %d times in the text", keyword, score)
+	// Get all text content
+	textContent := doc.Find("body").Text()
+	textContent = strings.ToLower(textContent)
 
+	// Calculate scores for each keyword
+	var scores []Score
+	log.Printf("\n========== KEYWORD MATCHES ==========")
+	for _, keyword := range keywords {
+		count := strings.Count(textContent, keyword)
+		scores = append(scores, Score{
+			Keyword: keyword,
+			Count:   count,
+		})
+		log.Printf("Keyword '%s' found %d times", keyword, count)
+	}
+	log.Printf("========== END KEYWORD MATCHES ==========\n")
+
+	// Create page record
 	page := Page{
-		URL:   url,
-		Score: score,
+		URL:       url,
+		Keywords:  keywords,
+		Scores:    scores,
+		HTML:      htmlContent,
+		CrawlTime: time.Now(),
 	}
 
+	// Save to MongoDB
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -192,17 +235,22 @@ func CrawlHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Failed to save to database: %v", err), http.StatusInternalServerError)
 		return
 	}
-	log.Printf("Successfully saved page to database with score %d", score)
+	log.Printf("Successfully saved page to database with %d keywords", len(keywords))
+
+	// Print page statistics
+	log.Printf("\n========== PAGE STATISTICS ==========")
+	log.Printf("Total number of HTML elements: %d", doc.Find("*").Length())
+	log.Printf("Number of links (a tags): %d", doc.Find("a").Length())
+	log.Printf("Number of images (img tags): %d", doc.Find("img").Length())
+	log.Printf("Number of paragraphs (p tags): %d", doc.Find("p").Length())
+	log.Printf("Number of divs: %d", doc.Find("div").Length())
+	log.Printf("Number of spans: %d", doc.Find("span").Length())
+	log.Printf("Number of headers (h1-h6): %d", doc.Find("h1, h2, h3, h4, h5, h6").Length())
+	log.Printf("Number of forms: %d", doc.Find("form").Length())
+	log.Printf("========== END STATISTICS ==========\n")
 
 	http.Redirect(w, r, "/results", http.StatusSeeOther)
 	log.Println("Redirecting to results page")
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 func ResultsHandler(w http.ResponseWriter, r *http.Request) {
@@ -211,7 +259,12 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 
 	collection := mongoClient.Database("crawler").Collection("pages")
 
-	cur, err := collection.Find(ctx, bson.M{}, options.Find().SetSort(bson.M{"score": -1}))
+	// Find the last 10 results, sorted by crawl time descending
+	opts := options.Find().
+		SetSort(bson.M{"crawl_time": -1}).
+		SetLimit(10)
+
+	cur, err := collection.Find(ctx, bson.M{}, opts)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to fetch results: %v", err), http.StatusInternalServerError)
 		return
